@@ -39,7 +39,7 @@ public class MySQL {
                 .with("database.history", "io.debezium.relational.history.FileDatabaseHistory")
                 .with("database.history.file.filename", "/path/to/storage/dbhistory.dat")
                 .with(MySqlConnectorConfig.DATABASE_WHITELIST, "test")//只关注的数据库, 使用MySqlConnectorConfig
-                .with("table.whitelist", "users")//只关注的table
+                .with("table.whitelist", "test.users")//只关注的table, 注意需要添加数据库前缀
                 .build();
 // Create the engine with this configuration ...
         EmbeddedEngine engine = EmbeddedEngine.create()
