@@ -1,21 +1,20 @@
 package example;
 
 import io.debezium.config.Configuration;
+import io.debezium.connector.mysql.MySqlConnectorConfig;
 import io.debezium.data.Envelope;
 import io.debezium.embedded.EmbeddedEngine;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.source.SourceRecord;
 
 import java.util.List;
-import java.util.Map;
-import java.util.WeakHashMap;
-import java.util.function.Supplier;
 
 /**
  * @author Zero
  * Created on 2019/4/24.
  */
 public class MySQL {
+    //https://debezium.io/blog/tags/examples/
 
     public static void main(String[] args) throws InterruptedException {
         // Define the configuration for the embedded and MySQL connector ...
@@ -28,39 +27,32 @@ public class MySQL {
                 .with("offset.storage.file.filename", "/path/to/storage/offset.dat")
                 .with("offset.flush.interval.ms", 10000)//10s保存一次偏移量, 0表示每次都保存
                 /* begin connector properties */
-                .with("name", "mysql-connector")
+
+                .with("name", "mysql-connector") //随意
                 .with("database.hostname", "localhost")
                 .with("database.port", 3306)
                 .with("database.user", "root")
                 .with("database.password", "")
-                .with("database.serverTimezone", "UTC")
-                .with("server.id", 85744)
+                .with("database.serverTimezone", "UTC") //高版本的MySQL驱动需要设置
+                .with("server.id", 85744) //确保唯一即可
                 .with("database.server.name", "products")
                 .with("database.history", "io.debezium.relational.history.FileDatabaseHistory")
                 .with("database.history.file.filename", "/path/to/storage/dbhistory.dat")
+                .with(MySqlConnectorConfig.DATABASE_WHITELIST, "test")//只关注的数据库, 使用MySqlConnectorConfig
+                .with("table.whitelist", "users")//只关注的table
                 .build();
 // Create the engine with this configuration ...
         EmbeddedEngine engine = EmbeddedEngine.create()
                 .using(config)
                 .notifying(MySQL::handleEvent)
                 .build();
-
-        Runtime.getRuntime().addShutdownHook(new Thread() {
-            @Override
-            public void run() {
-                engine.stop();
-            }
-        });
-
-        engine.run();
-
+        engine.run();//这里直接在主线程运行即可
 // Run the engine asynchronously ...
 //        Executor executor = Executors.newCachedThreadPool();
 //        executor.execute(engine);
 
 // At some later time ...
-// engine.stop();
-
+//        engine.stop();
     }
 
     private static void handleEvent(List<SourceRecord> sourceRecords, EmbeddedEngine.RecordCommitter recordCommitter) {
@@ -98,16 +90,5 @@ public class MySQL {
         recordCommitter.markBatchFinished();
     }
 
-
-    private Map<Object, Object> map = new WeakHashMap<>();
-
-    public <T> T execAndCache(Object key, long s, Supplier<T> fun) {
-        Object val = map.get(key);
-        if (val == null) {
-            val = fun.get();
-            map.put(key, val);
-        }
-        return fun.get();
-    }
 
 }
