@@ -46,6 +46,13 @@ public class MySQL {
                 .using(config)
                 .notifying(MySQL::handleEvent)
                 .build();
+        Runtime.getRuntime().addShutdownHook(new Thread() {
+            @Override
+            public void run() {
+                engine.stop();
+            }
+        });
+
         engine.run();//这里直接在主线程运行即可
 // Run the engine asynchronously ...
 //        Executor executor = Executors.newCachedThreadPool();
@@ -57,24 +64,32 @@ public class MySQL {
 
     private static void handleEvent(List<SourceRecord> sourceRecords, EmbeddedEngine.RecordCommitter recordCommitter) {
         System.out.println(sourceRecords);
-        sourceRecords.forEach(record -> {
+        //如果表中的某条记录的ID被修改了, 会产生两条记录, 一条是DELETE(仅before有值),一条是CREATE(仅after有值)
+        //如果表中的某条记录的非ID字段被修改了, 会产生一条记录UPDATE, before和after都有值
+        for (SourceRecord record : sourceRecords) {
             try {
                 Struct value = (Struct) record.value();
+                if (value == null) {
+                    recordCommitter.markProcessed(record);
+                    continue;
+                }
+                Envelope.Operation op = Envelope.Operation.forCode(value.getString("op"));
+                System.out.println(op);
                 //Envelope.ALL_FIELD_NAMES
                 System.out.println("topic: " + record.topic());
-                value.schema().fields().forEach(field -> {
-                    System.out.println(field.name());
-                    System.out.println(field);
-                });
+//                value.schema().fields().forEach(field -> {
+//                    System.out.println(field.name());
+//                    System.out.println(field);
+//                });
                 //products是上面配置中的database.server.name
                 if ("products.test.users".equals(record.topic())) {
                     Struct before = value.getStruct("before");//before.getString("username");
                     Struct after = value.getStruct("after");
                     System.out.println("before: " + before);
                     System.out.println("after: " + after);
-                    Envelope.Operation op = Envelope.Operation.forCode(value.getString("op"));
+
                     if (op == Envelope.Operation.UPDATE) {
-                        System.out.println("update");
+//                        System.out.println("update");
                     }
                 } else if ("products".equals(record.topic())) {
                     //value.getString("ddl")
@@ -82,11 +97,11 @@ public class MySQL {
                 }
                 recordCommitter.markProcessed(record);//调用这一步, 才会保存偏移量
             } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
+                Thread.interrupted();
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        });
+        }
         recordCommitter.markBatchFinished();
     }
 
